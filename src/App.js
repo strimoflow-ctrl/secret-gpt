@@ -196,6 +196,11 @@ function App() {
     // Commands Logic
     if (text === '/chat') {
       setIsSecretMode(true);
+      if (hasUnseen && lastReadTimestamp) {
+        sessionStartTimeRef.current = lastReadTimestamp;
+      } else {
+        sessionStartTimeRef.current = Date.now();
+      }
       setHasUnseen(false);
       // messages will be hydrated by subscribeToMessages
       if (inputBarRef.current) inputBarRef.current.clearInput();
@@ -247,6 +252,12 @@ function App() {
       // NORMAL AI MODE (Groq)
       setAiLoading(true);
       try {
+        if (!process.env.REACT_APP_GROQ_API_KEY) {
+          setMessages(prev => [...prev, { sender: 'user', content: text }, { sender: 'ai', content: "⚠️ API Key is missing. Please check your .env file and restart the React development server." }]);
+          setAiLoading(false);
+          return;
+        }
+
         const res = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
           model: "llama-3.3-70b-versatile",
           messages: [
@@ -263,7 +274,8 @@ function App() {
         const aiMsg = res.data.choices[0].message.content;
         setMessages(prev => [...prev, { sender: 'user', content: text }, { sender: 'ai', content: aiMsg }]);
       } catch (err) {
-        // silently fail or handle error without logging secret
+        const errorMsg = err.response?.data?.error?.message || err.message;
+        setMessages(prev => [...prev, { sender: 'user', content: text }, { sender: 'ai', content: `❌ API Error: ${errorMsg}\nPlease verify your Groq API key in .env` }]);
       } finally {
         setAiLoading(false);
       }

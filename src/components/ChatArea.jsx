@@ -27,7 +27,7 @@ const ChatArea = ({ messages, isSecretMode, isLoaded, currentAIResponse, onReply
         // Only scroll to bottom on initial load, if near bottom, or if user just sent a message
         const isNearBottom = containerRef.current && (containerRef.current.scrollHeight - containerRef.current.scrollTop - containerRef.current.clientHeight < 150);
         const lastMsg = messages[messages.length - 1];
-        const isMyMessage = lastMsg && (lastMsg.sender === 'me' || lastMsg.sender === 'user');
+        const isMyMessage = lastMsg && (lastMsg.sender === 'me' || lastMsg.sender === 'user' || lastMsg.senderEmail === loggedInUser?.email);
         
         if (firstMessageId === null || isNearBottom || isMyMessage) {
           messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
@@ -61,6 +61,18 @@ const ChatArea = ({ messages, isSecretMode, isLoaded, currentAIResponse, onReply
     
     resizeObserver.observe(container);
     return () => resizeObserver.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const handleFocus = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+        setTimeout(() => {
+          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }, 300);
+      }
+    };
+    window.addEventListener('focusin', handleFocus);
+    return () => window.removeEventListener('focusin', handleFocus);
   }, []);
 
   const handleScroll = (e) => {
