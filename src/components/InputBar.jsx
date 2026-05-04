@@ -5,6 +5,7 @@ const InputBar = forwardRef(({ onSendMessage, onCameraTrigger, onFileUpload, onP
   const [input, setInput] = useState('');
   const [showPlusMenu, setShowPlusMenu] = useState(false);
   const fileInputRef = useRef(null);
+  const inputRef = useRef(null);
 
   useImperativeHandle(ref, () => ({
     clearInput: () => setInput('')
@@ -16,6 +17,9 @@ const InputBar = forwardRef(({ onSendMessage, onCameraTrigger, onFileUpload, onP
       onSendMessage(input);
       setInput(''); // Immediate UI clear on send for everything
       setShowPlusMenu(false);
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 10);
     }
   };
 
@@ -48,7 +52,7 @@ const InputBar = forwardRef(({ onSendMessage, onCameraTrigger, onFileUpload, onP
   };
 
   return (
-    <div className="bg-[#171717] px-4 pb-6 pt-2 sticky bottom-0 relative">
+    <div className="bg-[#171717] px-4 pb-6 pt-2 w-full shrink-0 relative z-50">
       {replyToMsg && (
         <div className="flex items-center justify-between bg-[#2f2f2f] border-t border-x border-[#3e3e3e] rounded-t-[20px] px-4 py-2 mb-[-14px] pb-4 text-sm z-0 relative">
           <div className="flex flex-col">
@@ -120,7 +124,10 @@ const InputBar = forwardRef(({ onSendMessage, onCameraTrigger, onFileUpload, onP
           onChange={(e) => setInput(e.target.value)}
           placeholder="Ask ChatGPT"
           className="flex-1 bg-transparent border-none outline-none text-white text-[16px] px-2 py-1 placeholder-[#8e8e8e]"
-          autoComplete="off"
+          autoComplete="new-password"
+          spellCheck="false"
+          data-lpignore="true"
+          ref={inputRef}
         />
 
         {/* Right Side Icons */}

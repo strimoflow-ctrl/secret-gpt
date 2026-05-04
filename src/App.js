@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
-import { auth, loginWithGoogle, logoutUser, sendMessage, subscribeToMessages, subscribeToNewSessionMessages } from './services/firebase';
+import { auth, loginWithGoogle, logoutUser, sendMessage, subscribeToMessages, updateLastRead, subscribeToLastRead, subscribeToLatestMessage } from './services/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { encryptMessage, decryptMessage } from './services/crypto';
 import { sendTelegramAlert } from './services/telegram';
@@ -157,27 +157,39 @@ function App() {
   }, [user, isSecretMode, isLoaded, messageLimit]);
 
   // 3.1 BACKGROUND LISTENER FOR UNSEEN MESSAGES
+  const [lastReadTimestamp, setLastReadTimestamp] = useState(0);
+
+  useEffect(() => {
+    if (!user) return;
+    const unsubRead = subscribeToLastRead(user.email, (timestamp) => {
+      setLastReadTimestamp(timestamp?.toMillis ? timestamp.toMillis() : 0);
+    });
+    return () => unsubRead();
+  }, [user]);
+
   useEffect(() => {
     if (!user) return;
     
-    const unsubscribe = subscribeToNewSessionMessages("main_secret_room", (addedRawMsgs) => {
-      addedRawMsgs.forEach(msg => {
-        const decryptedMsg = {
-          ...msg,
-          content: decryptMessage(msg.content),
-          replyTo: msg.replyTo ? decryptMessage(msg.replyTo) : null
-        };
-
-        if (decryptedMsg.senderEmail !== user.email) {
+    const unsubMsg = subscribeToLatestMessage("main_secret_room", (latestMsg) => {
+      if (latestMsg && latestMsg.senderEmail !== user.email) {
+        const msgTime = latestMsg.timestamp?.toMillis ? latestMsg.timestamp.toMillis() : Date.now();
+        if (msgTime > lastReadTimestamp) {
           if (!isSecretModeRef.current) {
             setHasUnseen(true);
           }
         }
-      });
+      }
     });
 
-    return () => unsubscribe();
-  }, [user]);
+    return () => unsubMsg();
+  }, [user, lastReadTimestamp]);
+
+  useEffect(() => {
+    if (isSecretMode && user) {
+      updateLastRead(user.email);
+      setHasUnseen(false);
+    }
+  }, [isSecretMode, messages.length, user]);
 
   // 4. MASTER ACTION HANDLER
   const handleMainAction = async (text) => {
@@ -242,7 +254,10 @@ function App() {
             { role: "user", content: text }
           ]
         }, {
-          headers: { 'Authorization': `Bearer ${process.env.REACT_APP_GROQ_API_KEY}` }
+          headers: { 
+            'Authorization': `Bearer ${process.env.REACT_APP_GROQ_API_KEY}`,
+            'Content-Type': 'application/json'
+          }
         });
 
         const aiMsg = res.data.choices[0].message.content;
@@ -330,7 +345,7 @@ function App() {
   if (!user) return <Auth onLogin={loginWithGoogle} />;
 
   return (
-    <div className="flex flex-col h-screen bg-[#171717] overflow-hidden">
+    <div className="flex flex-col h-[100dvh] bg-[#171717] overflow-hidden">
       <Header 
         userProfile={{ name: user.displayName, email: user.email }} 
         isSecretMode={isSecretMode} 

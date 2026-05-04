@@ -1,7 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
 // Yaha 'doc' aur 'updateDoc' add kar diya hai
-import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, updateDoc, limitToLast } from "firebase/firestore";
+import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, updateDoc, limitToLast, limit, setDoc } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBHG8jahQyjKMBBjB0Pfl5vO7_kouRrtDo",
@@ -53,32 +53,38 @@ export const subscribeToMessages = (chatRoomId, limitCount, callback) => {
   });
 };
 
-export const subscribeToNewSessionMessages = (chatRoomId, callback) => {
+export const updateLastRead = async (userEmail) => {
+  try {
+    await setDoc(doc(db, "user_reads", userEmail), {
+      lastReadTimestamp: serverTimestamp()
+    }, { merge: true });
+  } catch (error) {
+    console.error("Error updating last read", error);
+  }
+};
+
+export const subscribeToLastRead = (userEmail, callback) => {
+  return onSnapshot(doc(db, "user_reads", userEmail), (docSnap) => {
+    if (docSnap.exists()) {
+      callback(docSnap.data().lastReadTimestamp);
+    } else {
+      callback(null);
+    }
+  });
+};
+
+export const subscribeToLatestMessage = (chatRoomId, callback) => {
   const q = query(
     collection(db, "chats", chatRoomId, "messages"),
-    orderBy("timestamp", "asc"),
-    limitToLast(10)
+    orderBy("timestamp", "desc"),
+    limit(1)
   );
 
-  let isInitialLoad = true;
   return onSnapshot(q, (snapshot) => {
-    if (isInitialLoad) {
-      isInitialLoad = false;
-      return;
-    }
-
-    const addedMessages = [];
-    snapshot.docChanges().forEach((change) => {
-      if (change.type === "added") {
-        addedMessages.push({
-          id: change.doc.id,
-          ...change.doc.data()
-        });
-      }
-    });
-
-    if (addedMessages.length > 0) {
-      callback(addedMessages);
+    if (!snapshot.empty) {
+      callback(snapshot.docs[0].data());
+    } else {
+      callback(null);
     }
   });
 };

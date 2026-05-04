@@ -49,15 +49,28 @@ const ChatArea = ({ messages, isSecretMode, isLoaded, currentAIResponse, onReply
     }
   }, [currentAIResponse]);
 
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    
+    const resizeObserver = new ResizeObserver(() => {
+      if (container.scrollHeight - container.scrollTop - container.clientHeight < 300) {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'instant' });
+      }
+    });
+    
+    resizeObserver.observe(container);
+    return () => resizeObserver.disconnect();
+  }, []);
+
   const handleScroll = (e) => {
     if (e.target.scrollTop === 0 && onLoadMore && messages.length >= 10) {
       onLoadMore();
     }
   };
 
-  const handleContextMenu = (e, msg) => {
+  const handleBubbleClick = (e, msg) => {
     if (!isSecretMode) return;
-    e.preventDefault();
     setPopupMenu({
       messageId: msg.id,
       msg: msg
@@ -149,12 +162,15 @@ const ChatArea = ({ messages, isSecretMode, isLoaded, currentAIResponse, onReply
           return (
           <div key={index} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
             <div 
-              onContextMenu={(e) => handleContextMenu(e, msg)}
-              className={`relative max-w-[80%] px-4 py-2 rounded-2xl text-[15px] cursor-pointer ${
+              onClick={(e) => handleBubbleClick(e, msg)}
+              onContextMenu={(e) => e.preventDefault()}
+              className={`relative max-w-[80%] px-4 py-2 rounded-2xl text-[15px] cursor-pointer select-none ${
               isUser 
               ? 'bg-[#2f2f2f] text-white' 
               : 'bg-transparent text-gray-200 border border-[#3e3e3e]'
-            }`}>
+            }`}
+              style={{ WebkitUserSelect: 'none', userSelect: 'none', WebkitTouchCallout: 'none' }}
+            >
               {/* Reply Reference */}
               {msg.replyTo && (
                 <div className={`mb-2 p-2 rounded-xl text-xs border-l-2 ${isUser ? 'bg-[#3e3e3e] border-[#10a37f]' : 'bg-[#2f2f2f] border-[#10a37f]'}`}>
@@ -167,7 +183,10 @@ const ChatArea = ({ messages, isSecretMode, isLoaded, currentAIResponse, onReply
                   <img 
                     src={msg.content} 
                     alt="sent" 
-                    onClick={() => onImageClick && onImageClick(msg.content)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onImageClick && onImageClick(msg.content);
+                    }}
                     className={`rounded-xl max-w-full h-auto cursor-pointer transition-all ${
                       msg.status === 'uploading' ? 'opacity-60 blur-[2px] animate-pulse' : 
                       (!explicitLoad ? 'blur-lg opacity-80 hover:opacity-100' : 'hover:opacity-90')
