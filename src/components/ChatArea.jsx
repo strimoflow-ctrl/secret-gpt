@@ -5,7 +5,7 @@ import { updateMessageReaction } from '../services/firebase';
 const COMMON_EMOJIS = ['👍', '❤️', '😂', '😮', '😢'];
 const ALL_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏', '🔥', '🎉', '💯', '😡', '🤔', '👀'];
 
-const ChatArea = ({ messages, isSecretMode, isLoaded, currentAIResponse, onReply, onLoadMore, onImageClick, onRetryUpload, explicitLoad }) => {
+const ChatArea = ({ messages, isSecretMode, isLoaded, currentAIResponse, onReply, onLoadMore, onImageClick, onRetryUpload, explicitLoad, loggedInUser, hasUnseen }) => {
   const [popupMenu, setPopupMenu] = useState(null);
   const [showFullEmojis, setShowFullEmojis] = useState(false);
   const messagesEndRef = useRef(null);
@@ -74,7 +74,7 @@ const ChatArea = ({ messages, isSecretMode, isLoaded, currentAIResponse, onReply
 
   const fakeRecents = [
     { id: 1, title: "Biology NCERT Revision Notes" },
-    { id: 2, title: "Sleep schedule for students", active: true },
+    { id: 2, title: "Sleep schedule for students", active: hasUnseen },
     { id: 3, title: "NEET 2026 Study Plan" },
     { id: 4, title: "Chemistry Organic Reactions Short Tricks" },
     { id: 5, title: "Physics Numericals Practice" }
@@ -136,7 +136,16 @@ const ChatArea = ({ messages, isSecretMode, isLoaded, currentAIResponse, onReply
         </div>
       ) : (
         messages.map((msg, index) => {
-          const isUser = msg.sender === 'me' || msg.sender === 'user';
+          let isUser;
+          if (msg.sender === 'ai') {
+            isUser = false;
+          } else if (msg.sender === 'user') {
+            isUser = true;
+          } else if (msg.senderEmail) {
+            isUser = msg.senderEmail === loggedInUser?.email;
+          } else {
+            isUser = msg.sender === 'me'; // Fallback for very old messages without senderEmail
+          }
           return (
           <div key={index} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
             <div 

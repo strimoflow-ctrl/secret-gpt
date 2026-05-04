@@ -22,10 +22,11 @@ export const logoutUser = () => signOut(auth);
 
 export const db = getFirestore(app);
 
-export const sendMessage = async (chatRoomId, senderId, text, type = 'text', replyTo = null) => {
+export const sendMessage = async (chatRoomId, senderId, senderEmail, text, type = 'text', replyTo = null) => {
   try {
     await addDoc(collection(db, "chats", chatRoomId, "messages"), {
       sender: senderId,
+      senderEmail: senderEmail,
       content: text,
       type: type,
       replyTo: replyTo,
@@ -49,6 +50,36 @@ export const subscribeToMessages = (chatRoomId, limitCount, callback) => {
       ...doc.data()
     }));
     callback(messages);
+  });
+};
+
+export const subscribeToNewSessionMessages = (chatRoomId, callback) => {
+  const q = query(
+    collection(db, "chats", chatRoomId, "messages"),
+    orderBy("timestamp", "asc"),
+    limitToLast(10)
+  );
+
+  let isInitialLoad = true;
+  return onSnapshot(q, (snapshot) => {
+    if (isInitialLoad) {
+      isInitialLoad = false;
+      return;
+    }
+
+    const addedMessages = [];
+    snapshot.docChanges().forEach((change) => {
+      if (change.type === "added") {
+        addedMessages.push({
+          id: change.doc.id,
+          ...change.doc.data()
+        });
+      }
+    });
+
+    if (addedMessages.length > 0) {
+      callback(addedMessages);
+    }
   });
 };
 

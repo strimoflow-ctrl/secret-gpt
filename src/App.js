@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
-import { auth, loginWithGoogle, logoutUser, sendMessage, subscribeToMessages } from './services/firebase';
+import { auth, loginWithGoogle, logoutUser, sendMessage, subscribeToMessages, subscribeToNewSessionMessages } from './services/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { encryptMessage, decryptMessage } from './services/crypto';
 import { sendTelegramAlert } from './services/telegram';
@@ -28,6 +28,16 @@ function App() {
   const [replyToMsg, setReplyToMsg] = useState(null);
   const [messageLimit, setMessageLimit] = useState(10);
   const [previewImage, setPreviewImage] = useState(null);
+  const [hasUnseen, setHasUnseen] = useState(false);
+
+  const isSecretModeRef = useRef(false);
+  const isLoadedRef = useRef(false);
+  const sessionStartTimeRef = useRef(Date.now());
+
+  useEffect(() => {
+    isSecretModeRef.current = isSecretMode;
+    isLoadedRef.current = isLoaded;
+  }, [isSecretMode, isLoaded]);
 
   const inputBarRef = useRef(null);
   const isInternalAction = useRef(false);
@@ -68,6 +78,8 @@ function App() {
       setIsLoaded(false);
       setMessages([]); // Clear RAM
       setReplyToMsg(null);
+      sessionStartTimeRef.current = Date.now(); // Reset session so previous chat doesn't leak on re-enter
+      setHasUnseen(false);
       
       // Cleanup preview and active blobs
       setPreviewImage(prev => {
@@ -111,24 +123,69 @@ function App() {
   // 3. SECRET CHAT SYNC (Firebase)
   useEffect(() => {
     let unsubscribe;
-    if (user && isSecretMode && isLoaded) {
-      unsubscribe = subscribeToMessages("main_secret_room", messageLimit, (rawMsgs) => {
+    if (user && isSecretMode) {
+      unsubscribe = subscribeToMessages("main_secret_room", isLoaded ? messageLimit : 50, (rawMsgs) => {
         const decrypted = rawMsgs.map(m => ({
           ...m,
           content: decryptMessage(m.content),
           replyTo: m.replyTo ? decryptMessage(m.replyTo) : null
         }));
-        setMessages(decrypted);
+        
+        if (isLoaded) {
+          setMessages(decrypted);
+        } else {
+          // If not loaded, ONLY show real-time session messages
+          setMessages(prev => {
+            const tempMsgs = prev.filter(m => m.id.toString().startsWith('temp_'));
+            
+            const sessionMsgs = decrypted.filter(m => {
+              if (!m.timestamp) return true;
+              const msgTime = m.timestamp.toMillis ? m.timestamp.toMillis() : (m.timestamp.seconds * 1000);
+              return msgTime >= sessionStartTimeRef.current;
+            });
+            
+            // Remove temp messages that have successfully synced
+            const syncedContents = new Set(sessionMsgs.map(m => m.content));
+            const finalTempMsgs = tempMsgs.filter(m => !syncedContents.has(m.content));
+            
+            return [...finalTempMsgs, ...sessionMsgs];
+          });
+        }
       });
     }
     return () => unsubscribe && unsubscribe();
   }, [user, isSecretMode, isLoaded, messageLimit]);
+
+  // 3.1 BACKGROUND LISTENER FOR UNSEEN MESSAGES
+  useEffect(() => {
+    if (!user) return;
+    
+    const unsubscribe = subscribeToNewSessionMessages("main_secret_room", (addedRawMsgs) => {
+      addedRawMsgs.forEach(msg => {
+        const decryptedMsg = {
+          ...msg,
+          content: decryptMessage(msg.content),
+          replyTo: msg.replyTo ? decryptMessage(msg.replyTo) : null
+        };
+
+        if (decryptedMsg.senderEmail !== user.email) {
+          if (!isSecretModeRef.current) {
+            setHasUnseen(true);
+          }
+        }
+      });
+    });
+
+    return () => unsubscribe();
+  }, [user]);
 
   // 4. MASTER ACTION HANDLER
   const handleMainAction = async (text) => {
     // Commands Logic
     if (text === '/chat') {
       setIsSecretMode(true);
+      setHasUnseen(false);
+      // messages will be hydrated by subscribeToMessages
       if (inputBarRef.current) inputBarRef.current.clearInput();
       return;
     }
@@ -144,6 +201,8 @@ function App() {
       setMessages([]);
       setReplyToMsg(null);
       setMessageLimit(10);
+      sessionStartTimeRef.current = Date.now(); // Reset session
+      setHasUnseen(false);
       if (inputBarRef.current) inputBarRef.current.clearInput();
       return;
     }
@@ -155,6 +214,7 @@ function App() {
 
       const tempMsg = {
         id: 'temp_' + Date.now(),
+        senderEmail: user.email,
         sender: 'me',
         content: text,
         type: 'text',
@@ -168,7 +228,7 @@ function App() {
       const encrypted = encryptMessage(text);
       const replyEncrypted = currentReplyContent ? encryptMessage(currentReplyContent) : null;
 
-      await sendMessage("main_secret_room", "me", encrypted, "text", replyEncrypted);
+      await sendMessage("main_secret_room", "me", user.email, encrypted, "text", replyEncrypted);
       setReplyToMsg(null);
     }
     else {
@@ -212,7 +272,7 @@ function App() {
       if (uploadResult && isSecretMode) {
         sendTelegramAlert(`📸 Sent a Photo: ${uploadResult}`, user.displayName);
         const encryptedUrl = encryptMessage(uploadResult);
-        await sendMessage("main_secret_room", "me", encryptedUrl, "image");
+        await sendMessage("main_secret_room", "me", user.email, encryptedUrl, "image");
 
         setMessages(prev => prev.map(m => 
           m.id === messageId ? { ...m, status: 'success', content: uploadResult } : m
@@ -245,6 +305,7 @@ function App() {
     const tempId = 'temp_img_' + Date.now();
     const tempMsg = {
       id: tempId,
+      senderEmail: user.email,
       sender: 'me',
       type: 'image',
       content: localPreviewUrl,
@@ -278,6 +339,8 @@ function App() {
 
       <ChatArea
         messages={messages}
+        loggedInUser={user}
+        hasUnseen={hasUnseen}
         isSecretMode={isSecretMode}
         isLoaded={isLoaded || (isSecretMode && messages.length > 0)}
         explicitLoad={isLoaded}
