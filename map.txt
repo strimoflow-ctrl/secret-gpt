@@ -1,0 +1,17 @@
+/secret-gpt
+  ├── /public
+  │     ├── manifest.json      <-- (Isse app banega)
+  │     └── icon.png           <-- (ChatGPT fake icon)
+  ├── /src
+  │     ├── /components
+  │     │     ├── Header.jsx   <-- (Search, Menu, Profile icons)
+  │     │     ├── ChatArea.jsx <-- (Main AI/Secret messages)
+  │     │     ├── InputBar.jsx <-- (Ask ChatGPT bar)
+  │     │     └── Auth.jsx     <-- (Google Login screen)
+  │     ├── /services
+  │     │     ├── firebase.js
+  │     │     ├── telegram.js  <-- (Bot notification logic)
+  │     │     └── crypto.js    <-- (Encryption logic 0325)
+  │     ├── App.js
+  │     └── index.css          <-- (Tailwind CSS for Dark Mode)
+  └── .env                     <-- (Sari Keys yaha rahengi)
