@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Menu, Search, Edit3, Sparkles, MessageSquare, User, Settings, HelpCircle, LogOut } from 'lucide-react';
+import { Menu, Search, Sparkles, MessageSquare, User, Settings, HelpCircle, LogOut } from 'lucide-react';
 
 const Header = ({ userProfile, isSecretMode, onLogout }) => {
   const [showProfileMenu, setShowProfileMenu] = useState(false);

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
-import { auth, loginWithGoogle, logoutUser, db, sendMessage, subscribeToMessages } from './services/firebase';
+import { auth, loginWithGoogle, logoutUser, sendMessage, subscribeToMessages } from './services/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { encryptMessage, decryptMessage } from './services/crypto';
 import { sendTelegramAlert } from './services/telegram';
@@ -47,9 +47,10 @@ function App() {
     });
     
     // Cleanup any lingering blob URLs on unmount
+    const currentActiveBlobs = activeBlobUrls.current;
     return () => {
       unsubscribe();
-      activeBlobUrls.current.forEach(url => URL.revokeObjectURL(url));
+      currentActiveBlobs.forEach(url => URL.revokeObjectURL(url));
     };
   }, []);
 
@@ -69,10 +70,12 @@ function App() {
       setReplyToMsg(null);
       
       // Cleanup preview and active blobs
-      if (previewImage && previewImage.startsWith('blob:')) {
-        URL.revokeObjectURL(previewImage);
-      }
-      setPreviewImage(null);
+      setPreviewImage(prev => {
+        if (prev && prev.startsWith('blob:')) {
+          URL.revokeObjectURL(prev);
+        }
+        return null;
+      });
       activeBlobUrls.current.forEach(url => URL.revokeObjectURL(url));
       activeBlobUrls.current.clear();
       setMessageLimit(10);

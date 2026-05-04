@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
-import { Image, FileText, Gift, GraduationCap, MessageSquare, ChevronRight, Reply } from 'lucide-react';
+import { Image, FileText, Gift, GraduationCap, ChevronRight, Reply } from 'lucide-react';
 import { updateMessageReaction } from '../services/firebase';
 
 const COMMON_EMOJIS = ['👍', '❤️', '😂', '😮', '😢'];

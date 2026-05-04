@@ -1,9 +1,8 @@
 import React, { useRef, useState } from 'react';
-import { Camera, X, RefreshCw } from 'lucide-react';
+import { X, RefreshCw } from 'lucide-react';
 
 const CameraModal = ({ isOpen, onClose, onCapture }) => {
   const videoRef = useRef(null);
-  const [hasPhoto, setHasPhoto] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // Camera Shuru Karo
